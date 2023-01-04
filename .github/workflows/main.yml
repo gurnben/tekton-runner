@@ -1,0 +1,51 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build-and-publish
+
+on: 
+  push:
+  schedule:
+  - cron: "00 8 * * 1-5"
+
+jobs:
+  build:
+    name: Build image
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Get current date
+      id: date
+      run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+    - name: Log in to Red Hat Registry
+      uses: redhat-actions/podman-login@v1
+      with:
+        registry: registry.redhat.io
+        username: ${{ secrets.REGISTRY_REDHAT_IO_USER }}
+        password: ${{ secrets.REGISTRY_REDHAT_IO_PASSWORD }}
+
+    - name: Buildah Action
+      id: build-image
+      uses: redhat-actions/buildah-build@v2
+      with:
+       # The name (reference) of the image to build
+       image: tekton-runner
+       # The tags of the image to build. For multiple tags, seperate by whitespace. For example, "latest v1".
+       tags: latest
+       # List of Containerfile paths (eg: ./Containerfile)
+       containerfiles: ./Dockerfile
+       
+    - name: Push To quay.io
+      id: push-to-quay
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        image: ${{ steps.build-image.outputs.image }}
+        tags: ${{ steps.build-image.outputs.tags }}
+        registry: quay.io/gurnben
+        username: ${{ secrets.QUAY_USER }}
+        password: ${{ secrets.QUAY_PASSWORD }}
+
+    - name: Print image url
+      run: echo "Image pushed to ${{ steps.push-to-quay.outputs.registry-paths }}"
